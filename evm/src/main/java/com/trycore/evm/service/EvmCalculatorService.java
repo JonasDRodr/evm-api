@@ -8,6 +8,10 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 
+import com.trycore.evm.dto.ProjectEvmDto;
+import com.trycore.evm.model.Project;
+import java.util.List;
+
 @Service
 public class EvmCalculatorService {
 
@@ -79,5 +83,52 @@ public class EvmCalculatorService {
         } else {
             return "Atrasado en cronograma";
         }
+    }
+
+    public ProjectEvmDto calculateProjectSummary(Project project, List<ActivityEvmDto> activityEvmDtos) {
+        ProjectEvmDto dto = new ProjectEvmDto();
+        dto.setId(project.getId());
+        dto.setName(project.getName());
+        dto.setDescription(project.getDescription());
+        dto.setActivities(activityEvmDtos);
+
+        BigDecimal totalBac = sum(activityEvmDtos.stream().map(ActivityEvmDto::getBac).toList());
+        BigDecimal totalPv = sum(activityEvmDtos.stream().map(ActivityEvmDto::getPv).toList());
+        BigDecimal totalEv = sum(activityEvmDtos.stream().map(ActivityEvmDto::getEv).toList());
+        BigDecimal totalAc = sum(activityEvmDtos.stream().map(ActivityEvmDto::getActualCost).toList());
+
+        dto.setTotalBac(totalBac);
+        dto.setTotalPv(totalPv);
+        dto.setTotalEv(totalEv);
+        dto.setTotalAc(totalAc);
+        dto.setCv(totalEv.subtract(totalAc).setScale(SCALE, ROUNDING_MODE));
+        dto.setSv(totalEv.subtract(totalPv).setScale(SCALE, ROUNDING_MODE));
+
+        BigDecimal cpi = totalAc.compareTo(BigDecimal.ZERO) == 0
+                ? BigDecimal.ZERO
+                : totalEv.divide(totalAc, SCALE, ROUNDING_MODE);
+
+        BigDecimal spi = totalPv.compareTo(BigDecimal.ZERO) == 0
+                ? BigDecimal.ZERO
+                : totalEv.divide(totalPv, SCALE, ROUNDING_MODE);
+
+        BigDecimal eac = cpi.compareTo(BigDecimal.ZERO) == 0
+                ? BigDecimal.ZERO
+                : totalBac.divide(cpi, SCALE, ROUNDING_MODE);
+
+        dto.setCpi(cpi);
+        dto.setSpi(spi);
+        dto.setEac(eac);
+        dto.setVac(totalBac.subtract(eac).setScale(SCALE, ROUNDING_MODE));
+        dto.setCpiInterpretation(interpretCpi(cpi));
+        dto.setSpiInterpretation(interpretSpi(spi));
+
+        return dto;
+    }
+
+    private BigDecimal sum(List<BigDecimal> values) {
+        return values.stream()
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(SCALE, ROUNDING_MODE);
     }
 }
